@@ -219,6 +219,24 @@ function Dashboard({ user, setUser }) {
                 return;
             }
 
+            if (data.type === "message") {
+                setMessages((prev) => ({
+                    ...prev,
+                    [currentRoom]: (prev[currentRoom] || []).map((message) =>
+                        message.id === data.message_id
+                            ? {
+                                ...message,
+                                seen_by: Array.from(
+                                    new Set([...(message.seen_by || []), data.username])
+                                ),
+                            }
+                            : message
+                        ,)
+                }));
+
+                return;
+            }
+
             setMessages((prev) => ({
                 ...prev,
                 [currentRoom]: [...(prev[currentRoom] || []), data],
@@ -262,7 +280,8 @@ function Dashboard({ user, setUser }) {
 
         socketRef.current.send(
             JSON.stringify({
-                type: "typing",
+                type: "room_message",
+                text: text,
             })
         );
 
@@ -353,7 +372,7 @@ function Dashboard({ user, setUser }) {
                         const now = Date.now();
 
                         if (
-                            socketRef.current && 
+                            socketRef.current &&
                             socketRef.current.readyState === WebSocket.OPEN &&
                             now - lastTypingRef.current > 1000
                         ) {

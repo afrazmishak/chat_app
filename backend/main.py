@@ -22,6 +22,7 @@ from database import (
 from pydantic import BaseModel
 from database import create_user
 from jose import jwt, JWTError
+from message_builder import build_room_message, build_private_message
 
 SECRET_KEY = "change-this-secret-key-later"
 ALGORITHM = "HS256"
@@ -273,12 +274,12 @@ async def websocket_endpoint(
             await websocket.close(code=1008)
             return
     
-    except JSWError:
+    except JWTError:
         await websocket.close(code=1008)
         return
 
     await manager.connect(room, username, websocket)
-    set_user_online(username, True);
+    set_user_online(username, True)
 
     save_user(username)
     save_room_member(username, room)
@@ -328,33 +329,35 @@ async def websocket_endpoint(
                     username,
                     raw_message["text"]
                 )
-                
-                await manager.broadcast(room, {
-                    "type": "room_message",
-                    "id": message_id,
-                    "username": username,
-                    "text": raw_message["text"],
-                    "time": timestamp,
-                    "room": room,
-                    "seen_by": []
-                })
+
+                message = build_room_message(
+                    message_id,
+                    username,
+                    room,
+                    raw_message["text"],
+                    timestamp
+                )
+
+                await manager.broadcast(room, message)
 
             elif raw_message["type"] == "private_message":
                 receiver = raw_message["to"]
 
-                save_private_message(
+                message_id = save_private_message(
                     username,
                     receiver,
                     raw_message["text"]
                 )
 
-                await manager.send_private_message(username, receiver, {
-                    "type": "private_message",
-                    "from": username,
-                    "to": receiver,
-                    "text": raw_message["text"],
-                    "time": timestamp
-                })
+                message = build_private_message(
+                    message_id,
+                    username,
+                    receiver,
+                    raw_message["text"],
+                    timestamp
+                )
+
+                await manager.send_private_message(username, receiver, message)
 
     except WebSocketDisconnect:
         manager.disconnect(room, username, websocket)

@@ -1,4 +1,5 @@
 import psycopg2
+from message_builder import build_room_message, build_private_message
 
 DB_CONFIG = {
     "dbname": "chat_app",
@@ -41,7 +42,7 @@ def save_room_message(room_name, username, message):
         (room_name, username, message)
     )
 
-    message.id = cur.fetchone()[0]
+    message_id = cur.fetchone()[0]
 
     conn.commit()
     cur.close()
@@ -71,15 +72,15 @@ def get_room_messages(room_name):
     messages = []
 
     for row in rows:
-        messages.append({
-            "type": "room_message",
-            "id": row[0],
-            "username": row[1],
-            "text": row[2],
-            "time": row[3].strftime("%H:%M"),
-            "room": room_name,
-            "seen_by": []
-        })
+        messages.append(
+            build_room_message(
+                row[0],
+                row[1],
+                room_name,
+                row[2],
+                row[3].strftime("%H:%M")
+            )
+        )
 
     return messages
 
@@ -91,13 +92,18 @@ def save_private_message(sender, receiver, message):
         """
         INSERT INTO private_messages (sender, receiver, message)
         VALUES (%s, %s, %s)
+        RETURNING id
         """,
         (sender, receiver, message)
     )
 
+    message_id = cur.fetchone()[0]
+
     conn.commit()
     cur.close()
     conn.close()
+
+    return message_id
 
 def get_private_messages(user1, user2):
     conn = get_connection()
@@ -105,7 +111,7 @@ def get_private_messages(user1, user2):
 
     cur.execute(
         """
-        SELECT sender, receiver, message, created_at
+        SELECT id, sender, receiver, message, created_at
         FROM private_messages
         WHERE
             (sender = %s AND receiver = %s)
@@ -124,13 +130,15 @@ def get_private_messages(user1, user2):
     messages = []
 
     for row in rows:
-        messages.append({
-            "type": "private_message",
-            "from": row[0],
-            "to": row[1],
-            "text": row[2],
-            "time": row[3].strftime("%H:%M")
-        })
+        messages.append(
+            build_private_message(
+                row[0],
+                row[1],
+                row[2],
+                row[3],
+                row[4].strftime("%H:%M")
+            )
+        )
 
     return messages
 
