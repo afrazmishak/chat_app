@@ -1,8 +1,12 @@
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useRef, useState } from "react";
 import RoomChat from "../components/RoomChat"
 import PrivateChat from "../components/PrivateChat"
-import ProfilePanel from "../components/ProfilePanel";
 import ProfileCard from "../components/ProfileCard";
+import useRoomHistory from "../hooks/useRoomHistory";
+import useJoinedRooms from "../hooks/useJoinedRooms";
+import usePrivateHistory from "../hooks/usePrivateHistory";
+import usePrivateConversations from "../hooks/usePrivateConversations";
+import useChatSocket from "../hooks/useChatSocket";
 
 function Dashboard({ user, setUser }) {
     const defaultRoom = "general";
@@ -23,238 +27,71 @@ function Dashboard({ user, setUser }) {
 
     const socketRef = useRef(null);
 
-    //Load saved rooms useEffect
-    useEffect(() => {
-        async function loadUserRooms() {
-            const token = localStorage.getItem("chat_token");
+    useRoomHistory(currentRoom, setMessages);
+    useJoinedRooms(user, setJoinedRooms);
+    usePrivateHistory(user, selectedPrivateUser, setPrivateMessages);
+    usePrivateConversations(user, setPrivateConversations);
 
-            const response = await fetch(
-                `http://127.0.0.1:8000/users/${user.username}/rooms`,
-                {
-                    headers: {
-                        Authorization: `Bearer ${token}`
-                    }
-                }
-            );
+    const handleIncomingMessage = useCallback((data) => {
+        console.log("Received:", data);
 
-            if (!response.ok) {
-                alert("Session expired. Please login again.");
-                localStorage.removeItem("chat_user");
-                localStorage.removeItem("chat_token");
-                window.location.reload();
-                return;
-            }
-
-            const rooms = await response.json();
-
-            if (rooms.length > 0) {
-                setJoinedRooms((prev) =>
-                    Array.from(new Set([...prev, ...rooms])));
-            }
+        if (data.type === "users") {
+            setUsers(data.users);
+            return;
         }
 
-        loadUserRooms();
-    }, [user.username]);
-
-    //Load room history useEffect
-    useEffect(() => {
-        async function loadRoomHistory() {
-            const token = localStorage.getItem("chat_token");
-
-            const response = await fetch(
-                `http://127.0.0.1:8000/rooms/${currentRoom}/messages`, {
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                },
-            }
-            );
-
-            if (!response.ok) {
-                alert("Session expired. Please login again.");
-                localStorage.removeItem("chat_user");
-                localStorage.removeItem("chat_token");
-                window.location.reload();
-                return;
-            }
-
-            const history = await response.json();
-
-            setMessages((prev) => ({
-                ...prev,
-                [currentRoom]: history,
-            }));
+        if (data.type === "global_users") {
+            setGlobalUsers(data.users);
+            return;
         }
 
-        loadRoomHistory();
-    }, [currentRoom]);
+        if (data.type === "typing") {
+            if (data.username !== user.username) {
+                setTypingUsers((prev) =>
+                    prev.includes(data.username) ? prev : [...prev, data.username]
+                );
 
-    //Load private history useEffect
-    useEffect(() => {
-        async function loadPrivateHistory() {
-            if (!selectedPrivateUser) return;
-
-            const token = localStorage.getItem("chat_token");
-
-            const response = await fetch(
-                `http://127.0.0.1:8000/private/${user.username}/${selectedPrivateUser}/messages`,
-                {
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                    },
-                }
-            );
-
-            if (!response.ok) {
-                alert("Session expired. Please login again.");
-                localStorage.removeItem("chat_user");
-                localStorage.removeItem("chat_token");
-                window.location.reload();
-                return;
+                setTimeout(() => {
+                    setTypingUsers((prev) =>
+                        prev.filter((name) => name !== data.username)
+                    );
+                }, 1500);
             }
 
-            const history = await response.json();
+            return;
+        }
+
+        if (data.type === "private_message") {
+            const otherUser = data.from === user.username ? data.to : data.from;
 
             setPrivateMessages((prev) => ({
                 ...prev,
-                [selectedPrivateUser]: history,
+                [otherUser]: [...(prev[otherUser] || []), data],
             }));
-        }
 
-        loadPrivateHistory();
-    }, [selectedPrivateUser, user.username]);
-
-    //Load private conversation useEffect
-    useEffect(() => {
-        async function loadPrivateConversations() {
-            const token = localStorage.getItem("chat_token");
-
-            const response = await fetch(
-                `http://127.0.0.1:8000/users/${user.username}/private-conversations`,
-                {
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                    },
-                }
-            );
-
-            if (!response.ok) {
-                alert("Session expired. Please login again.");
-                localStorage.removeItem("chat_user");
-                localStorage.removeItem("chat_token");
-                window.location.reload();
-                return;
-            }
-
-            const conversations = await response.json();
-
-            setPrivateConversations(conversations);
-        }
-
-        loadPrivateConversations();
-    }, [user.username]);
-
-    //WebSocket useEffect
-    useEffect(() => {
-        const token = localStorage.getItem("chat_token");
-
-        const wsUrl = `ws://127.0.0.1:8000/ws/${currentRoom}/${user.username}?token=${token}`;
-
-        const socket = new WebSocket(wsUrl);
-        socketRef.current = socket;
-
-        socket.onopen = () => {
-            setStatus("Connected");
-        };
-
-        socket.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-            console.log("Received:", data);
-
-            if (data.type === "users") {
-                setUsers(data.users);
-                return;
-            }
-
-            if (data.type === "global_users") {
-                setGlobalUsers(data.users);
-                return;
-            }
-
-            if (data.type === "typing") {
-                if (data.username !== user.username) {
-                    setTypingUsers((prev) => {
-                        if (prev.includes(data.username)) {
-                            return prev;
-                        }
-
-                        return [...prev, data.username];
-                    });
-
-                    setTimeout(() => {
-                        setTypingUsers((prev) =>
-                            prev.filter((name) => name !== data.username)
-                        );
-                    }, 1500);
-                }
-
-                return;
-            }
-
-            if (data.type === "private_message") {
-                const otherUser =
-                    data.from === user.username ? data.to : data.from;
-
-                setPrivateMessages((prev) => ({
+            if (data.from !== user.username && selectedPrivateUser !== otherUser) {
+                setPrivateUnread((prev) => ({
                     ...prev,
-                    [otherUser]: [...(prev[otherUser] || []), data],
+                    [otherUser]: (prev[otherUser] || 0) + 1,
                 }));
-
-                if (data.from !== user.username && selectedPrivateUser !== otherUser) {
-                    setPrivateUnread((prev) => ({
-                        ...prev,
-                        [otherUser]: (prev[otherUser] || 0) + 1,
-                    }));
-                }
-
-                return;
             }
 
-            if (data.type === "message") {
-                setMessages((prev) => ({
-                    ...prev,
-                    [currentRoom]: (prev[currentRoom] || []).map((message) =>
-                        message.id === data.message_id
-                            ? {
-                                ...message,
-                                seen_by: Array.from(
-                                    new Set([...(message.seen_by || []), data.username])
-                                ),
-                            }
-                            : message
-                        ,)
-                }));
-
-                return;
-            }
-
-            setMessages((prev) => ({
-                ...prev,
-                [currentRoom]: [...(prev[currentRoom] || []), data],
-            }));
-        };
-
-        socket.onerror = () => {
-            setStatus("Error");
+            return;
         }
 
-        socket.onclose = () => {
-            setStatus("Closed");
-        }
-
-        return () => {
-            socket.close();
-        };
+        setMessages((prev) => ({
+            ...prev,
+            [currentRoom]: [...(prev[currentRoom] || []), data],
+        }));
     }, [currentRoom, user.username, selectedPrivateUser]);
+
+    useChatSocket({
+        currentRoom,
+        username: user.username,
+        socketRef,
+        setStatus,
+        handleIncomingMessage,
+    });
 
     function switchRoom(roomName) {
         const cleanRoom = roomName.trim();
@@ -326,8 +163,6 @@ function Dashboard({ user, setUser }) {
                 </div>
 
                 <ProfileCard />
-
-                <ProfilePanel />
 
                 <input
                     placeholder="Room Name"
