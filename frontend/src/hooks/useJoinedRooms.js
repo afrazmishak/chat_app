@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { handleSessionExpired } from "../utils/auth";
 
 function useJoinedRooms(user, setJoinedRooms) {
     useEffect(() => {
@@ -15,10 +16,7 @@ function useJoinedRooms(user, setJoinedRooms) {
             );
 
             if (!response.ok) {
-                alert("Session expired. Please login again");
-                localStorage.removeItem("chat_user");
-                localStorage.removeItem("chat_token");
-                window.location.reload();
+                handleSessionExpired();
                 return;
             }
 

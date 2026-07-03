@@ -209,7 +209,7 @@ class ConnectionManager:
             if username in self.users[room]:
                 self.users[room].remove(username)
 
-                if username in self.active_users:
+                if self.active_users.get(username) == websocket:
                     del self.active_users[username]
 
             if len(self.rooms[room]) == 0:

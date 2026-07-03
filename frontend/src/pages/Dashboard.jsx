@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useRef, useState, useEffect } from "react";
 import RoomChat from "../components/RoomChat"
 import PrivateChat from "../components/PrivateChat"
 import ProfileCard from "../components/ProfileCard";
@@ -7,6 +7,7 @@ import useJoinedRooms from "../hooks/useJoinedRooms";
 import usePrivateHistory from "../hooks/usePrivateHistory";
 import usePrivateConversations from "../hooks/usePrivateConversations";
 import useChatSocket from "../hooks/useChatSocket";
+import useTypingIndicator from "../hooks/useTypingIndicator";
 
 function Dashboard({ user, setUser }) {
     const defaultRoom = "general";
@@ -15,7 +16,6 @@ function Dashboard({ user, setUser }) {
     const [joinedRooms, setJoinedRooms] = useState([defaultRoom]);
     const [messages, setMessages] = useState({});
     const [users, setUsers] = useState([]);
-    const [typingUsers, setTypingUsers] = useState([]);
     const [status, setStatus] = useState("Connecting...");
     const [text, setText] = useState("");
     const [globalUsers, setGlobalUsers] = useState([]);
@@ -23,9 +23,20 @@ function Dashboard({ user, setUser }) {
     const [selectedPrivateUser, setSelectedPrivateUser] = useState(null);
     const [privateUnread, setPrivateUnread] = useState({});
     const [privateConversations, setPrivateConversations] = useState([]);
-    const lastTypingRef = useRef(0);
+
+    const selectedPrivateUserRef = useRef(selectedPrivateUser);
+    useEffect(() => {
+        selectedPrivateUserRef.current = selectedPrivateUser;
+    }, [selectedPrivateUser]);
 
     const socketRef = useRef(null);
+
+    const {
+        typingUsers,
+        handleTyping,
+        sendTyping,
+        clearTyping,
+    } = useTypingIndicator(socketRef);
 
     useRoomHistory(currentRoom, setMessages);
     useJoinedRooms(user, setJoinedRooms);
@@ -46,18 +57,7 @@ function Dashboard({ user, setUser }) {
         }
 
         if (data.type === "typing") {
-            if (data.username !== user.username) {
-                setTypingUsers((prev) =>
-                    prev.includes(data.username) ? prev : [...prev, data.username]
-                );
-
-                setTimeout(() => {
-                    setTypingUsers((prev) =>
-                        prev.filter((name) => name !== data.username)
-                    );
-                }, 1500);
-            }
-
+            handleTyping(data.username, user.username);
             return;
         }
 
@@ -69,7 +69,7 @@ function Dashboard({ user, setUser }) {
                 [otherUser]: [...(prev[otherUser] || []), data],
             }));
 
-            if (data.from !== user.username && selectedPrivateUser !== otherUser) {
+            if (data.from !== user.username && selectedPrivateUserRef.current !== otherUser) {
                 setPrivateUnread((prev) => ({
                     ...prev,
                     [otherUser]: (prev[otherUser] || 0) + 1,
@@ -83,7 +83,7 @@ function Dashboard({ user, setUser }) {
             ...prev,
             [currentRoom]: [...(prev[currentRoom] || []), data],
         }));
-    }, [currentRoom, user.username, selectedPrivateUser]);
+    }, [currentRoom, user.username, selectedPrivateUserRef, handleTyping,]);
 
     useChatSocket({
         currentRoom,
@@ -123,7 +123,7 @@ function Dashboard({ user, setUser }) {
         );
 
         setText("");
-        setTypingUsers([])
+        clearTyping();
     }
 
     function sendPrivateMessage(to, privateText) {
@@ -203,22 +203,7 @@ function Dashboard({ user, setUser }) {
                     text={text}
                     setText={(value) => {
                         setText(value);
-
-                        const now = Date.now();
-
-                        if (
-                            socketRef.current &&
-                            socketRef.current.readyState === WebSocket.OPEN &&
-                            now - lastTypingRef.current > 1000
-                        ) {
-                            socketRef.current.send(
-                                JSON.stringify({
-                                    type: "typing",
-                                })
-                            );
-
-                            lastTypingRef.current = now;
-                        }
+                        sendTyping();
                     }}
                     users={users}
                     status={status}

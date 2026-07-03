@@ -66,21 +66,33 @@ def get_room_messages(room_name):
 
     rows = cur.fetchall()
 
-    cur.close()
-    conn.close()
-
     messages = []
 
     for row in rows:
-        messages.append(
-            build_room_message(
+        messages = build_room_message(
                 row[0],
                 row[1],
                 room_name,
                 row[2],
                 row[3].strftime("%H:%M")
-            )
         )
+
+        cur.execute(
+            """
+            SELECT username
+            FROM room_message_reads
+            WHERE message_id = %s
+            """,
+            (row[0])
+        )
+
+        seen_rows = cur.fetchall()
+        message["seen_by"] = [seen_row[0] for seen_row in seen_rows]
+
+        messages.append(message)
+
+    cur.close()
+    conn.close()
 
     return messages
 
