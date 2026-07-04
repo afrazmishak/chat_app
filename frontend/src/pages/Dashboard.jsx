@@ -8,6 +8,8 @@ import usePrivateHistory from "../hooks/usePrivateHistory";
 import usePrivateConversations from "../hooks/usePrivateConversations";
 import useChatSocket from "../hooks/useChatSocket";
 import useTypingIndicator from "../hooks/useTypingIndicator";
+import { SESSION_TIMEOUT_MINUTES } from "../config";
+import useIdleLogout from "../hooks/useIdleLogout";
 
 function Dashboard({ user, setUser }) {
     const defaultRoom = "general";
@@ -31,6 +33,12 @@ function Dashboard({ user, setUser }) {
 
     const socketRef = useRef(null);
 
+    const messagesRef = useRef(messages);
+
+    useEffect(() => {
+        messagesRef.current = messages;
+    }, [messages]);
+
     const {
         typingUsers,
         handleTyping,
@@ -38,7 +46,7 @@ function Dashboard({ user, setUser }) {
         clearTyping,
     } = useTypingIndicator(socketRef);
 
-    useRoomHistory(currentRoom, setMessages);
+    useRoomHistory(currentRoom, setMessages, socketRef, user.username);
     useJoinedRooms(user, setJoinedRooms);
     usePrivateHistory(user, selectedPrivateUser, setPrivateMessages);
     usePrivateConversations(user, setPrivateConversations);
@@ -48,6 +56,24 @@ function Dashboard({ user, setUser }) {
 
         if (data.type === "users") {
             setUsers(data.users);
+
+            const roomMessages = messagesRef.current[currentRoom] || [];
+
+            roomMessages.forEach((message) => {
+                if (
+                    message.type === "room_message" &&
+                    message.username !== user.username &&
+                    socketRef.current &&
+                    socketRef.current.readyState === WebSocket.OPEN
+                ) {
+                    socketRef.current.send(
+                        JSON.stringify({
+                            type: "message_seen",
+                            message_id: message.id,
+                        })
+                    );
+                }
+            });
             return;
         }
 
@@ -79,11 +105,38 @@ function Dashboard({ user, setUser }) {
             return;
         }
 
+        if (data.type === "message_seen") {
+            setMessages((prev) => ({
+                ...prev,
+                [currentRoom]: (prev[currentRoom] || []).map((message) =>
+                    message.id === data.message_id
+                        ? {
+                            ...message,
+                            seen_by: Array.from(
+                                new Set([...(message.seen_by || []), data.username])
+                            ),
+                        }
+                        : message
+                ),
+            }));
+
+            return;
+        }
+
         setMessages((prev) => ({
             ...prev,
             [currentRoom]: [...(prev[currentRoom] || []), data],
         }));
-    }, [currentRoom, user.username, selectedPrivateUserRef, handleTyping,]);
+
+        if (data.type === "room_message" && data.username !== user.username) {
+            socketRef.current.send(
+                JSON.stringify({
+                    type: "message_seen",
+                    message_id: data.id,
+                })
+            );
+        }
+    }, [currentRoom, user.username, handleTyping,]);
 
     useChatSocket({
         currentRoom,
@@ -151,6 +204,8 @@ function Dashboard({ user, setUser }) {
             [username]: 0,
         }));
     }
+
+    useIdleLogout(SESSION_TIMEOUT_MINUTES);
 
     return (
         <div className="dashboard">

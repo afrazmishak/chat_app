@@ -1,12 +1,11 @@
 function MessageBubble({ message, currentUsername }) {
-  if (message.type === "message" || message.type === "room_message") {
+  if (message.type === "system") {
     return (
       <p style={{ textAlign: "center", color: "gray" }}>
         {message.text}
       </p>
     );
   }
-
   const isMine = message.username === currentUsername;
 
   return (
@@ -30,6 +29,14 @@ function MessageBubble({ message, currentUsername }) {
         <p>{message.text}</p>
 
         <small>{message.time}</small>
+
+        {message.username === currentUsername && (
+          <small>
+            {message.seen_by && message.seen_by.length > 0
+              ? `Seen by ${message.seen_by.join(", ")}`
+              : "Sent"}
+          </small>
+        )}
       </div>
     </div>
   );

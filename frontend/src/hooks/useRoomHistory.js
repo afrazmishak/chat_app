@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { handleSessionExpired } from "../utils/auth";
 
-function useRoomHistory(currentRoom, setMessages) {
+function useRoomHistory(currentRoom, setMessages, socketRef, username) {
     useEffect(() => {
         async function loadRoomHistory() {
             const token = localStorage.getItem("chat_token");
@@ -26,10 +26,26 @@ function useRoomHistory(currentRoom, setMessages) {
                 ...prev,
                 [currentRoom]: history,
             }));
+
+            history.forEach((message) => {
+                if (
+                    message.type === "room_message" &&
+                    message.username !== username &&
+                    socketRef.current &&
+                    socketRef.current.readyState === WebSocket.OPEN
+                ) {
+                    socketRef.current.send(
+                        JSON.stringify({
+                            type: "message_seen",
+                            message_id: message.id,
+                        })
+                    );
+                }
+            });
         }
 
         loadRoomHistory();
-    }, [currentRoom, setMessages]);
+    }, [currentRoom, setMessages, socketRef, username]);
 }
 
 export default useRoomHistory;

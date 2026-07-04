@@ -239,12 +239,22 @@ class ConnectionManager:
 
     async def broadcast_global_users(self):
         global_users = list(self.active_users.keys())
+        disconnected_users = []
         
-        for connection in self.active_users.values():
-            await connection.send_json({
+        for username, connection in self.active_users.items():
+            try:
+                await connection.send_json({
                 "type": "global_users",
                 "users": global_users
                 })
+            except RuntimeError:
+                disconnected_users.append(username)
+            except WebSocketDisconnect:
+                disconnected_users.append(username)
+
+        for username in disconnected_users:
+            if username in self.active_users:
+                del self.active_users[username]
 
     async def send_private_message(self, sender: str, receiver: str, data: dict):
         sender_socket = self.active_users.get(sender)
@@ -308,6 +318,7 @@ async def websocket_endpoint(
                         "username": username
                     }
                 )
+
                 continue
 
             if raw_message["type"] == "message_seen":

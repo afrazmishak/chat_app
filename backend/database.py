@@ -69,7 +69,7 @@ def get_room_messages(room_name):
     messages = []
 
     for row in rows:
-        messages = build_room_message(
+        message = build_room_message(
                 row[0],
                 row[1],
                 room_name,
@@ -83,7 +83,7 @@ def get_room_messages(room_name):
             FROM room_message_reads
             WHERE message_id = %s
             """,
-            (row[0])
+            (row[0],)
         )
 
         seen_rows = cur.fetchall()
