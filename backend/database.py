@@ -56,7 +56,7 @@ def get_room_messages(room_name):
 
     cur.execute(
         """
-        SELECT id, username, message, created_at
+        SELECT id, username, message, created_at, edited, edited_at
         FROM room_messages
         WHERE room_name = %s
         ORDER BY created_at ASC
@@ -74,7 +74,12 @@ def get_room_messages(room_name):
                 row[1],
                 room_name,
                 row[2],
-                row[3].strftime("%H:%M")
+                row[3].strftime("%H:%M"),
+        )
+
+        message["edited"] = row[4]
+        message["edited_at"] = (
+            row[5].strftime("%H:%M") if row[5] else None
         )
 
         cur.execute(
@@ -385,3 +390,52 @@ def mark_room_message_seen(message_id, username):
     conn.commit()
     cur.close()
     conn.close()
+
+def edit_room_message(message_id, username, new_text):
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        UPDATE room_messages
+        SET message = %s,
+            edited = TRUE,
+            edited_at = CURRENT_TIMESTAMP
+        WHERE id = %s 
+        AND username = %s
+        RETURNING id, username, room_name, message, created_at, edited, edited_at
+        """,
+        (new_text, message_id, username)
+    )
+
+    updated_message = cur.fetchone()
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return updated_message
+
+def delete_room_message(message_id, username):
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        UPDATE room_messages
+        SET deleted = TRUE,
+            deleted_at = CURRENT_TIMESTAMP
+        WHERE id = %s
+        AND username = %s
+        RETURNING id
+        """,
+        (message_id, username)
+    )
+
+    deleted_message = cur.fetchone()
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return deleted_message

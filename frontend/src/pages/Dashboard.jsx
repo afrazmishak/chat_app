@@ -123,6 +123,42 @@ function Dashboard({ user, setUser }) {
             return;
         }
 
+        if (data.type === "room_message_edited") {
+            setMessages((prev) => ({
+                ...prev,
+                [currentRoom]: (prev[currentRoom] || []).map((message) =>
+                    message.id === data.message_id
+                        ? {
+                            ...message,
+                            text: data.text,
+                            edited: true,
+                            edited_at: data.edited_at,
+                        }
+                        : message
+                ),
+            }));
+
+            return;
+        }
+
+        if (data.type === "room_message_deleted") {
+            setMessages((prev) => ({
+                ...prev,
+                [currentRoom]: (prev[currentRoom] || []).map((message) =>
+                    message.id === data.message.id
+                        ? {
+                            ...message,
+                            text: "This message was deleted",
+                            deleted: true,
+                            deleted_at: data.deleted_at,
+                        }
+                        : message
+                ),
+            }));
+
+            return;
+        }
+
         setMessages((prev) => ({
             ...prev,
             [currentRoom]: [...(prev[currentRoom] || []), data],
@@ -205,6 +241,29 @@ function Dashboard({ user, setUser }) {
         }));
     }
 
+    function handleEditMessage(message, newText) {
+        socketRef.current.send(
+            JSON.stringify({
+                type: "edit_room_message",
+                message_id: message.id,
+                text: newText,
+            })
+        );
+    }
+
+    function handleDeleteMessage(message) {
+        const confirmDelete = confirm("Delete this message for everyone?");
+
+        if(!confirmDelete) return;
+
+        socketRef.current.send(
+            JSON.stringify({
+                type: "delete_room_message",
+                message_id: message.id,
+            })
+        );
+    }
+
     useIdleLogout(SESSION_TIMEOUT_MINUTES);
 
     return (
@@ -263,6 +322,8 @@ function Dashboard({ user, setUser }) {
                     users={users}
                     status={status}
                     typingUsers={typingUsers}
+                    onEditMessage={handleEditMessage}
+                    onDeleteMessage={handleDeleteMessage}
                 />
             </main>
 

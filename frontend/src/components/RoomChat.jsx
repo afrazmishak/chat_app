@@ -1,6 +1,6 @@
 import MessageBubble from "./MessageBubble";
 
-function RoomChat({ user, currentRoom, messages, sendMessage, text, setText, users, status, typingUsers }) {
+function RoomChat({ user, currentRoom, messages, sendMessage, text, setText, users, status, typingUsers, onEditMessage, onDeleteMessage }) {
     return (
         <>
             <div className="room-header">
@@ -25,6 +25,8 @@ function RoomChat({ user, currentRoom, messages, sendMessage, text, setText, use
                         key={index}
                         message={message}
                         currentUsername={user.username}
+                        onEditMessage={onEditMessage}
+                        onDeleteMessage={onDeleteMessage}
                     />
                 ))}
             </div>

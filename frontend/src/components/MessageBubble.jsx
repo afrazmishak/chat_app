@@ -1,4 +1,9 @@
-function MessageBubble({ message, currentUsername }) {
+import { useState } from "react";
+
+function MessageBubble({ message, currentUsername, onEditMessage, onDeleteMessage }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editText, setEditText] = useState(message.text);
+
   if (message.type === "system") {
     return (
       <p style={{ textAlign: "center", color: "gray" }}>
@@ -26,9 +31,49 @@ function MessageBubble({ message, currentUsername }) {
       >
         {!isMine && <strong>{message.username}</strong>}
 
-        <p>{message.text}</p>
+        {message.deleted ? (
+          <p>
+            <i>This message was deleted</i>
+          </p>
+        ) : isEditing ? (
+          <div>
+            <input
+              value={editText}
+              onChange={(e) => setEditText(e.target.value)}
+            />
+
+            <button onClick={() => {
+              if (!editText.trim()) return;
+              onEditMessage(message, editText);
+              setIsEditing(false);
+            }}>Save</button>
+
+            <button onClick={() => {
+              setEditText(message.text);
+              setIsEditing(false);
+            }}>Cancel</button>
+          </div>
+        ) : (
+          <p>{message.text}</p>
+        )}
 
         <small>{message.time}</small>
+
+        {message.edited && (
+          <small> (edited) </small>
+        )}
+
+        {isMine && message.type === "room_message" && (
+          <button onClick={() => setIsEditing(true)}>
+            Edit
+          </button>
+        )}
+
+        {isMine && message.type === "room_message" && !message.deleted && (
+          <button onClick={() => onDeleteMessage(message)}>
+            Delete
+          </button>
+        )}
 
         {message.username === currentUsername && (
           <small>

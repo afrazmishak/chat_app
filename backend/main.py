@@ -18,6 +18,8 @@ from database import (
     update_last_seen,
     set_user_online,
     mark_room_message_seen,
+    edit_room_message,
+    delete_room_message,
 )
 from pydantic import BaseModel
 from database import create_user
@@ -331,6 +333,40 @@ async def websocket_endpoint(
                     "message_id": message_id,
                     "username": username
                 })
+
+                continue
+
+            if raw_message["type"] == "edit_room_message":
+                updated = edit_room_message(
+                    raw_message["message_id"],
+                    username,
+                    raw_message["text"]
+                )
+
+                if updated:
+                    await manager.broadcast(room, {
+                        "type": "room_message_edited",
+                        "message_id": raw_message["message_id"],
+                        "text": raw_message["text"],
+                        "edited": True,
+                        "edited_at": datetime.now().strftime("%H:%M")
+                    })
+
+                continue
+
+            if raw_message["type"] == "delete_room_message":
+                deleted = delete_room_message(
+                    raw_message["message_id"],
+                    username
+                )
+
+                if deleted:
+                    await manager.broadcast(room, {
+                        "type": "room_message_deleted",
+                        "message_id": raw_message["message_id"],
+                        "deleted": True,
+                        'deleted_at': datetime.now().strftime("%H:%M")
+                    })
 
                 continue
 
