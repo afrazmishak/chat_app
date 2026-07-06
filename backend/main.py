@@ -355,20 +355,29 @@ async def websocket_endpoint(
                 continue
 
             if raw_message["type"] == "delete_room_message":
-                deleted = delete_room_message(
-                    raw_message["message_id"],
-                    username
-                )
+                try:
+                    print("Deleting message:", raw_message)
+                    
+                    deleted = delete_room_message(
+                        raw_message["message_id"],
+                        username
+                    )
 
-                if deleted:
-                    await manager.broadcast(room, {
-                        "type": "room_message_deleted",
-                        "message_id": raw_message["message_id"],
-                        "deleted": True,
-                        'deleted_at': datetime.now().strftime("%H:%M")
-                    })
+                    print("Deleted result:", deleted)
 
-                continue
+                    if deleted:
+                        await manager.broadcast(room, {
+                            "type": "room_message_deleted",
+                            "message_id": raw_message["message_id"],
+                            "deleted": True,
+                            'deleted_at': datetime.now().strftime("%H:%M")
+                        })
+
+                    continue
+
+                except Exception as e:
+                    print("DELETE ERROR:", e)
+                    continue
 
             if raw_message["type"] == "room_message":
                 message_id = save_room_message(
@@ -411,13 +420,17 @@ async def websocket_endpoint(
         set_user_online(username, False)
         update_last_seen(username)
 
-        await manager.broadcast(room, {
-            "type": "system",
-            "text": f"System: {username} left the room"
-        })
+        try:
+            await manager.broadcast(room, {
+                "type": "system",
+                "text": f"System: {username} left the room"
+            })
+            
+            await manager.broadcast_users(room)
+            await manager.broadcast_global_users()
 
-        await manager.broadcast_users(room)
-        await manager.broadcast_global_users()
+        except RuntimeError:
+            pass
 
 @app.get("/profile")
 def profile(current_user: dict = Depends(get_current_user)):

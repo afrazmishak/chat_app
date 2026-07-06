@@ -56,7 +56,7 @@ def get_room_messages(room_name):
 
     cur.execute(
         """
-        SELECT id, username, message, created_at, edited, edited_at
+        SELECT id, username, message, created_at, edited, edited_at, deleted, deleted_at
         FROM room_messages
         WHERE room_name = %s
         ORDER BY created_at ASC
@@ -81,6 +81,14 @@ def get_room_messages(room_name):
         message["edited_at"] = (
             row[5].strftime("%H:%M") if row[5] else None
         )
+
+        message["deleted"] = row[6]
+        message["deleted_at"] = (
+            row[7].strftime("%H:%M") if row[7] else None
+        )
+
+        if message["deleted"]:
+            message["text"] = "This message was deleted"
 
         cur.execute(
             """

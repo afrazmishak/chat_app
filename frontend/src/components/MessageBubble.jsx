@@ -63,7 +63,7 @@ function MessageBubble({ message, currentUsername, onEditMessage, onDeleteMessag
           <small> (edited) </small>
         )}
 
-        {isMine && message.type === "room_message" && (
+        {isMine && message.type === "room_message" && !message.deleted && (
           <button onClick={() => setIsEditing(true)}>
             Edit
           </button>

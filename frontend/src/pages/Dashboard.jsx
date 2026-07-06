@@ -108,18 +108,19 @@ function Dashboard({ user, setUser }) {
         if (data.type === "message_seen") {
             setMessages((prev) => ({
                 ...prev,
-                [currentRoom]: (prev[currentRoom] || []).map((message) =>
-                    message.id === data.message_id
+                [currentRoom]: (prev[currentRoom] || []).map((message) => {
+                    if (!message) return message;
+
+                    return message.id === data.message_id
                         ? {
                             ...message,
                             seen_by: Array.from(
                                 new Set([...(message.seen_by || []), data.username])
                             ),
                         }
-                        : message
-                ),
+                        : message;
+                }),
             }));
-
             return;
         }
 
@@ -144,16 +145,18 @@ function Dashboard({ user, setUser }) {
         if (data.type === "room_message_deleted") {
             setMessages((prev) => ({
                 ...prev,
-                [currentRoom]: (prev[currentRoom] || []).map((message) =>
-                    message.id === data.message.id
+                [currentRoom]: (prev[currentRoom] || []).map((message) => {
+                    if (!message) return message;
+
+                    return message.id === data.message_id
                         ? {
                             ...message,
                             text: "This message was deleted",
                             deleted: true,
                             deleted_at: data.deleted_at,
                         }
-                        : message
-                ),
+                        : message;
+                }),
             }));
 
             return;
@@ -254,7 +257,7 @@ function Dashboard({ user, setUser }) {
     function handleDeleteMessage(message) {
         const confirmDelete = confirm("Delete this message for everyone?");
 
-        if(!confirmDelete) return;
+        if (!confirmDelete) return;
 
         socketRef.current.send(
             JSON.stringify({
