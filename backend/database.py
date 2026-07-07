@@ -29,17 +29,17 @@ def save_user(username):
     cur.close()
     conn.close()
 
-def save_room_message(room_name, username, message):
+def save_room_message(room_name, username, message, reply_to_message_id=None):
     conn = get_connection()
     cur = conn.cursor()
 
     cur.execute(
         """
-        INSERT INTO room_messages (room_name, username, message)
-        VALUES (%s, %s, %s)
+        INSERT INTO room_messages (room_name, username, message, reply_to_message_id)
+        VALUES (%s, %s, %s, %s)
         RETURNING id
         """,
-        (room_name, username, message)
+        (room_name, username, message, reply_to_message_id)
     )
 
     message_id = cur.fetchone()[0]
@@ -56,7 +56,7 @@ def get_room_messages(room_name):
 
     cur.execute(
         """
-        SELECT id, username, message, created_at, edited, edited_at, deleted, deleted_at
+        SELECT id, username, message, created_at, edited, edited_at, deleted, deleted_at, reply_to_message_id
         FROM room_messages
         WHERE room_name = %s
         ORDER BY created_at ASC
@@ -89,6 +89,31 @@ def get_room_messages(room_name):
 
         if message["deleted"]:
             message["text"] = "This message was deleted"
+
+        message["reply_to"] = row[8]
+
+        if row[8]:
+            cur.execute(
+                """
+                SELECT username, message, deleted
+                FROM room_messages
+                WHERE id = %s
+                """,
+                (row[8],)
+            )
+
+            reply_row = cur.fetchone()
+
+            if reply_row:
+                message["reply_preview"] = {
+                    "username": reply_row[0],
+                    "text": "This message was deleted" if reply_row[2] else reply_row[1],
+                    "deleted": reply_row[2],
+                }
+            else:
+                message["reply_preview"] = None
+        else :
+            message["reply_preview"] = None
 
         cur.execute(
             """

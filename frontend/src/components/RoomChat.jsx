@@ -1,6 +1,6 @@
 import MessageBubble from "./MessageBubble";
 
-function RoomChat({ user, currentRoom, messages, sendMessage, text, setText, users, status, typingUsers, onEditMessage, onDeleteMessage }) {
+function RoomChat({ user, currentRoom, messages, sendMessage, text, setText, users, status, typingUsers, onEditMessage, onDeleteMessage, replyingTo, setReplyingTo, onReplyMessage }) {
     return (
         <>
             <div className="room-header">
@@ -27,6 +27,7 @@ function RoomChat({ user, currentRoom, messages, sendMessage, text, setText, use
                         currentUsername={user.username}
                         onEditMessage={onEditMessage}
                         onDeleteMessage={onDeleteMessage}
+                        onReplyMessage={onReplyMessage}
                     />
                 ))}
             </div>
@@ -42,6 +43,17 @@ function RoomChat({ user, currentRoom, messages, sendMessage, text, setText, use
             )}
 
             <br />
+
+            {replyingTo && (
+                <div style={{ borderLeft: "3px solid gray", paddingLeft: "8px" }}>
+                    <small>Rpelying to {replyingTo.username}</small>
+                    <p>{replyingTo.text}</p>
+
+                    <button onClick={() => setReplyingTo(null)}>
+                        Cancel
+                    </button>
+                </div>
+            )}
 
             <input
                 placeholder="Type message"

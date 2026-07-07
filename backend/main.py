@@ -380,10 +380,13 @@ async def websocket_endpoint(
                     continue
 
             if raw_message["type"] == "room_message":
+                reply_to_message_id = raw_message.get("reply_to_message_id")
+
                 message_id = save_room_message(
                     room,
                     username,
-                    raw_message["text"]
+                    raw_message["text"],
+                    reply_to_message_id
                 )
 
                 message = build_room_message(
@@ -393,6 +396,21 @@ async def websocket_endpoint(
                     raw_message["text"],
                     timestamp
                 )
+
+                message["reply_to"] = reply_to_message_id
+                message["reply_preview"] = None
+
+                if reply_to_message_id:
+                    history = get_room_messages(room)
+
+                    for old_message in history:
+                        if old_message["id"] == reply_to_message_id:
+                            message["reply_preview"] = {
+                                "username": old_message["username"],
+                                "text": old_message["text"],
+                                "deleted": old_message.get("deleted", False),
+                            }
+                            break
 
                 await manager.broadcast(room, message)
 

@@ -25,6 +25,7 @@ function Dashboard({ user, setUser }) {
     const [selectedPrivateUser, setSelectedPrivateUser] = useState(null);
     const [privateUnread, setPrivateUnread] = useState({});
     const [privateConversations, setPrivateConversations] = useState([]);
+    const [replyingTo, setReplyingTo] = useState(null);
 
     const selectedPrivateUserRef = useRef(selectedPrivateUser);
     useEffect(() => {
@@ -211,11 +212,13 @@ function Dashboard({ user, setUser }) {
             JSON.stringify({
                 type: "room_message",
                 text: text,
+                reply_to_message_id: replyingTo ? replyingTo.id : null,
             })
         );
 
         setText("");
         clearTyping();
+        setReplyingTo(null);
     }
 
     function sendPrivateMessage(to, privateText) {
@@ -327,6 +330,9 @@ function Dashboard({ user, setUser }) {
                     typingUsers={typingUsers}
                     onEditMessage={handleEditMessage}
                     onDeleteMessage={handleDeleteMessage}
+                    replyingTo={replyingTo}
+                    setReplyingTo={setReplyingTo}
+                    onReplyMessage={setReplyingTo}
                 />
             </main>
 

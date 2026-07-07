@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-function MessageBubble({ message, currentUsername, onEditMessage, onDeleteMessage }) {
+function MessageBubble({ message, currentUsername, onEditMessage, onDeleteMessage, onReplyMessage }) {
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(message.text);
 
@@ -15,6 +15,7 @@ function MessageBubble({ message, currentUsername, onEditMessage, onDeleteMessag
 
   return (
     <div
+      id={`message-${message.id}`}
       style={{
         display: "flex",
         justifyContent: isMine ? "flex-end" : "flex-start",
@@ -30,6 +31,35 @@ function MessageBubble({ message, currentUsername, onEditMessage, onDeleteMessag
         }}
       >
         {!isMine && <strong>{message.username}</strong>}
+
+        {message.reply_preview && (
+          <div
+          onClick={() => {
+            const element = document.getElementById(
+              `message-${message.reply_to}`
+            );
+
+            if (element) {
+              element.scrollIntoView({
+                behavior: "smooth",
+                block: "center",
+              });
+            }
+          }}
+            style={{
+              borderLeft: "3px solid gray",
+              paddingLeft: "8px",
+              marginBottom: "6px",
+              opacity: 0.8,
+              cursor: "pointer"
+            }}
+          >
+            <small>{message.reply_preview.username}</small>
+            <p style={{ margin: 0}}>
+              {message.reply_preview.text}
+            </p>
+          </div>
+        )}
 
         {message.deleted ? (
           <p>
@@ -61,6 +91,12 @@ function MessageBubble({ message, currentUsername, onEditMessage, onDeleteMessag
 
         {message.edited && (
           <small> (edited) </small>
+        )}
+
+        {message.type === "room_message" && !message.deleted && (
+          <button onClick={() => onReplyMessage(message)}>
+            Reply
+          </button>
         )}
 
         {isMine && message.type === "room_message" && !message.deleted && (
