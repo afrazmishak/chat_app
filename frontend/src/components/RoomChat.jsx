@@ -55,12 +55,13 @@ function RoomChat({ user, currentRoom, messages, sendMessage, text, setText, use
                                 key={result.id}
                                 onClick={() => {
                                     const element = document.getElementById(`message-${result.id}`);
+                                    const container = document.getElementById("message-list");
 
-                                    if (element) {
-                                        element.scrollIntoView({
-                                            behavior: "smooth",
-                                            block: "center"
-                                        });
+                                    if (element && container) {
+                                        container.scrollTop = 
+                                            element.offsetTop - 
+                                            container.offsetTop - 
+                                            container.clientHeight /2;
                                     }
                                 }}
                                 style={{
@@ -90,7 +91,9 @@ function RoomChat({ user, currentRoom, messages, sendMessage, text, setText, use
                 </button>
             </div>
 
-            <div style={{ border: "1px solid black", height: "300px", overflowY: "auto" }}>
+            <div 
+                id="message-list"
+                style={{ border: "1px solid black", height: "300px", overflowY: "auto" }}>
                 {messages.map((message, index) => (
                     <MessageBubble
                         key={index}
