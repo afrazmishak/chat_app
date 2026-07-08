@@ -472,3 +472,35 @@ def delete_room_message(message_id, username):
     conn.close()
 
     return deleted_message
+
+def search_room_messages(room_name, query):
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        SELECT id, username, message, created_at
+        FROM room_messages
+        WHERE room_name =%s
+        AND deleted = FALSE
+        AND message ILIKE %s
+        ORDER BY created_at DESC
+        LIMIT 50
+        """,
+        (room_name, f"%{query}%")
+    )
+
+    rows = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    return [
+        {
+            "id": row[0],
+            "username": row[1],
+            "text": row[2],
+            "time": row[3].strftime("%H:%M"),
+        }
+        for row in rows
+    ]

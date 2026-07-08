@@ -10,6 +10,7 @@ import useChatSocket from "../hooks/useChatSocket";
 import useTypingIndicator from "../hooks/useTypingIndicator";
 import { SESSION_TIMEOUT_MINUTES } from "../config";
 import useIdleLogout from "../hooks/useIdleLogout";
+import useRoomSearch from "../hooks/useRoomSearch";
 
 function Dashboard({ user, setUser }) {
     const defaultRoom = "general";
@@ -46,6 +47,14 @@ function Dashboard({ user, setUser }) {
         sendTyping,
         clearTyping,
     } = useTypingIndicator(socketRef);
+
+    const {
+        searchText,
+        setSearchText,
+        searchResults,
+        searchMessages,
+        clearSearch,
+    } = useRoomSearch(currentRoom)
 
     useRoomHistory(currentRoom, setMessages, socketRef, user.username);
     useJoinedRooms(user, setJoinedRooms);
@@ -333,6 +342,11 @@ function Dashboard({ user, setUser }) {
                     replyingTo={replyingTo}
                     setReplyingTo={setReplyingTo}
                     onReplyMessage={setReplyingTo}
+                    searchText={searchText}
+                    setSearchText={setSearchText}
+                    searchResults={searchResults}
+                    searchMessages={searchMessages}
+                    clearSearch={clearSearch}
                 />
             </main>
 

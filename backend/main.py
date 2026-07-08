@@ -20,6 +20,7 @@ from database import (
     mark_room_message_seen,
     edit_room_message,
     delete_room_message,
+    search_room_messages,
 )
 from pydantic import BaseModel
 from database import create_user
@@ -185,6 +186,14 @@ def user_private_conversations(username: str, current_user: dict = Depends(get_c
         )
 
     return get_private_conversations(username)
+
+@app.get("/rooms/{room_name}/search")
+def search_messages(
+    room_name: str,
+    q: str,
+    current_user: dict = Depends(get_current_user)
+):
+    return search_room_messages(room_name, q)
 
 class ConnectionManager:
     def __init__(self):
