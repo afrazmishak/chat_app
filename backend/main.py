@@ -1,7 +1,9 @@
 import bcrypt
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Depends
+import os
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Depends, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer
+from fastapi.staticfiles import StaticFiles
 from datetime import datetime, timedelta
 from database import (
     save_user, 
@@ -32,6 +34,11 @@ ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
 app = FastAPI()
+
+UPLOAD_DIR = "uploads"
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
 app.add_middleware(
     CORSMiddleware,
@@ -390,12 +397,14 @@ async def websocket_endpoint(
 
             if raw_message["type"] == "room_message":
                 reply_to_message_id = raw_message.get("reply_to_message_id")
+                attachments = raw_message.get("attachments", [])
 
                 message_id = save_room_message(
                     room,
                     username,
                     raw_message["text"],
-                    reply_to_message_id
+                    reply_to_message_id,
+                    attachments
                 )
 
                 message = build_room_message(
@@ -408,6 +417,7 @@ async def websocket_endpoint(
 
                 message["reply_to"] = reply_to_message_id
                 message["reply_preview"] = None
+                message["attachments"] = attachments
 
                 if reply_to_message_id:
                     history = get_room_messages(room)
@@ -442,7 +452,7 @@ async def websocket_endpoint(
 
                 await manager.send_private_message(username, receiver, message)
 
-    except WebSocketDisconnect:
+    except (WebSocketDisconnect, RuntimeError):
         manager.disconnect(room, username, websocket)
         set_user_online(username, False)
         update_last_seen(username)
@@ -473,3 +483,19 @@ def edit_profile(
         profile_data.bio,
         profile_data.avatar_url
     )
+
+@app.post("/upload")
+async def upload_file(
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user)
+):
+    file_path = os.path.join(UPLOAD_DIR, file.filename)
+
+    with open(file_path, "wb") as buffer:
+        buffer.write(await file.read())
+
+    return {
+        "filename": file.filename,
+        "url": f"http://127.0.0.1:8000/uploads/{file.filename}",
+        "content_type": file.content_type
+    }

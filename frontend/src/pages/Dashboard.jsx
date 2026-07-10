@@ -27,6 +27,7 @@ function Dashboard({ user, setUser }) {
     const [privateUnread, setPrivateUnread] = useState({});
     const [privateConversations, setPrivateConversations] = useState([]);
     const [replyingTo, setReplyingTo] = useState(null);
+    const [selectedFiles, setSelectedFiles] = useState([]);
 
     const selectedPrivateUserRef = useRef(selectedPrivateUser);
     useEffect(() => {
@@ -137,8 +138,10 @@ function Dashboard({ user, setUser }) {
         if (data.type === "room_message_edited") {
             setMessages((prev) => ({
                 ...prev,
-                [currentRoom]: (prev[currentRoom] || []).map((message) =>
-                    message.id === data.message_id
+                [currentRoom]: (prev[currentRoom] || []).map((message) => {
+                    if (!message) return message;
+
+                    return message.id === data.message_id
                         ? {
                             ...message,
                             text: data.text,
@@ -146,9 +149,8 @@ function Dashboard({ user, setUser }) {
                             edited_at: data.edited_at,
                         }
                         : message
-                ),
+                }),
             }));
-
             return;
         }
 
@@ -207,25 +209,70 @@ function Dashboard({ user, setUser }) {
         }
     }
 
-    function sendMessage() {
-        if (!text.trim()) return;
+    async function uploadSelectedFiles() {
+        if (selectedFiles.length === 0) {
+            return [];
+        }
+
+        const token = localStorage.getItem("chat_token");
+
+        const uploadedFiles = [];
+
+        for (const file of selectedFiles) {
+
+            const formData = new FormData();
+            formData.append("file", file);
+
+            const response = await fetch(
+                "http://127.0.0.1:8000/upload",
+                {
+                    method: "POST",
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                    },
+                    body: formData,
+                }
+            );
+
+            if (!response.ok) {
+                throw new Error(`Failed to upload ${file.name}`);
+            }
+
+            const uploadedFile = await response.json();
+
+            uploadedFiles.push(uploadedFile);
+        }
+
+        return uploadedFiles;
+    }
+
+    async function sendMessage() {
+        if (!text.trim() && selectedFiles.length === 0) return;
 
         if (!socketRef.current || socketRef.current.readyState !== WebSocket.OPEN) {
             alert(`Chat is not connected. Current status: ${status}`);
             return;
         }
 
-        console.log("Sending typing event")
+        let attachments;
+
+        try {
+            attachments = await uploadSelectedFiles();
+        } catch (error) {
+            alert(error.message);
+            return;
+        }
 
         socketRef.current.send(
             JSON.stringify({
                 type: "room_message",
                 text: text,
                 reply_to_message_id: replyingTo ? replyingTo.id : null,
+                attachments: attachments,
             })
         );
-
         setText("");
+        setSelectedFiles([]);
         clearTyping();
         setReplyingTo(null);
     }
@@ -347,6 +394,8 @@ function Dashboard({ user, setUser }) {
                     searchResults={searchResults}
                     searchMessages={searchMessages}
                     clearSearch={clearSearch}
+                    selectedFiles={selectedFiles}
+                    setSelectedFiles={setSelectedFiles}
                 />
             </main>
 

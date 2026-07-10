@@ -34,18 +34,18 @@ function MessageBubble({ message, currentUsername, onEditMessage, onDeleteMessag
 
         {message.reply_preview && (
           <div
-          onClick={() => {
-            const element = document.getElementById(
-              `message-${message.reply_to}`
-            );
+            onClick={() => {
+              const element = document.getElementById(
+                `message-${message.reply_to}`
+              );
 
-            if (element) {
-              element.scrollIntoView({
-                behavior: "smooth",
-                block: "center",
-              });
-            }
-          }}
+              if (element) {
+                element.scrollIntoView({
+                  behavior: "smooth",
+                  block: "center",
+                });
+              }
+            }}
             style={{
               borderLeft: "3px solid gray",
               paddingLeft: "8px",
@@ -55,7 +55,7 @@ function MessageBubble({ message, currentUsername, onEditMessage, onDeleteMessag
             }}
           >
             <small>{message.reply_preview.username}</small>
-            <p style={{ margin: 0}}>
+            <p style={{ margin: 0 }}>
               {message.reply_preview.text}
             </p>
           </div>
@@ -86,6 +86,49 @@ function MessageBubble({ message, currentUsername, onEditMessage, onDeleteMessag
         ) : (
           <p>{message.text}</p>
         )}
+
+        {!message.deleted &&
+          message.attachments && message.attachments.length > 0 && (
+            <div style={{ marginTop: "8px" }}>
+              {message.attachments.map((attachment, index) => {
+                const isImage =
+                  attachment.content_type &&
+                  attachment.content_type.startsWith("image/");
+
+                return (
+                  <div
+                    key={`${attachment.filename}-${index}`}
+                    style={{ marginBottom: "8px" }}
+                  >
+                    {isImage ? (
+                      <a href={attachment.url}
+                        target="_blank"
+                        rel="noreferrer">
+                        <img
+                          src={attachment.url}
+                          alt={attachment.filename}
+                          style={{
+                            maxWidth: "220px",
+                            maxHeight: "220px",
+                            objectFit: "cover",
+                            borderRadius: "8px",
+                          }}
+                        />
+                      </a>
+                    ) : (
+                      <a
+                        href={attachment.url}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        📎 {attachment.filename}
+                      </a>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
 
         <small>{message.time}</small>
 

@@ -1,6 +1,12 @@
+import { useRef } from "react";
 import MessageBubble from "./MessageBubble";
 
-function RoomChat({ user, currentRoom, messages, sendMessage, text, setText, users, status, typingUsers, onEditMessage, onDeleteMessage, onReplyMessage, replyingTo, setReplyingTo, searchText, setSearchText, searchResults, searchMessages, clearSearch, }) {
+function RoomChat({ user, currentRoom, messages, sendMessage, text, setText,
+    users, status, typingUsers, onEditMessage, onDeleteMessage, onReplyMessage,
+    replyingTo, setReplyingTo, searchText, setSearchText, searchResults, searchMessages,
+    clearSearch, selectedFiles, setSelectedFiles }) {
+    const fileInputRef = useRef(null);
+
     return (
         <>
             <div className="room-header">
@@ -27,7 +33,7 @@ function RoomChat({ user, currentRoom, messages, sendMessage, text, setText, use
 
                 }}
             >
-                <input 
+                <input
                     type="text"
                     placeholder="Search messages..."
                     value={searchText}
@@ -58,10 +64,10 @@ function RoomChat({ user, currentRoom, messages, sendMessage, text, setText, use
                                     const container = document.getElementById("message-list");
 
                                     if (element && container) {
-                                        container.scrollTop = 
-                                            element.offsetTop - 
-                                            container.offsetTop - 
-                                            container.clientHeight /2;
+                                        container.scrollTop =
+                                            element.offsetTop -
+                                            container.offsetTop -
+                                            container.clientHeight / 2;
                                     }
                                 }}
                                 style={{
@@ -72,7 +78,7 @@ function RoomChat({ user, currentRoom, messages, sendMessage, text, setText, use
                             >
                                 <strong>{result.username}</strong>
 
-                                <p style={{ margin: "4px 0"}}>
+                                <p style={{ margin: "4px 0" }}>
                                     {result.text}
                                 </p>
 
@@ -91,7 +97,7 @@ function RoomChat({ user, currentRoom, messages, sendMessage, text, setText, use
                 </button>
             </div>
 
-            <div 
+            <div
                 id="message-list"
                 style={{ border: "1px solid black", height: "300px", overflowY: "auto" }}>
                 {messages.map((message, index) => (
@@ -126,6 +132,47 @@ function RoomChat({ user, currentRoom, messages, sendMessage, text, setText, use
                     <button onClick={() => setReplyingTo(null)}>
                         Cancel
                     </button>
+                </div>
+            )}
+
+            <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                onChange={(e) => {
+                    const files = Array.from(e.target.files || []);
+                    setSelectedFiles(files);
+                }}
+            />
+
+            {selectedFiles.length > 0 && (
+                <div>
+                    {selectedFiles.map((file) => (
+                        <div key={`${file.name}-${file.lastModified}`}>
+                            <span>{file.name}</span>
+
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setSelectedFiles((prev) => {
+                                        const updatedFiles = prev.filter(
+                                            (selectedFile) => selectedFile !== file
+                                        );
+
+                                        if (
+                                            updatedFiles.length === 0 &&
+                                            fileInputRef.current
+                                        ) {
+                                            fileInputRef.current.value = "";
+                                        }
+                                        return updatedFiles;
+                                    });
+                                }}
+                            >
+                                Remove
+                            </button>
+                        </div>
+                    ))}
                 </div>
             )}
 

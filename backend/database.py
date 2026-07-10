@@ -1,4 +1,5 @@
 import psycopg2
+import json
 from message_builder import build_room_message, build_private_message
 
 DB_CONFIG = {
@@ -29,17 +30,25 @@ def save_user(username):
     cur.close()
     conn.close()
 
-def save_room_message(room_name, username, message, reply_to_message_id=None):
+def save_room_message(room_name, username, message, reply_to_message_id=None, attachments=None):
     conn = get_connection()
     cur = conn.cursor()
 
+    attachments = attachments or []
+
     cur.execute(
         """
-        INSERT INTO room_messages (room_name, username, message, reply_to_message_id)
-        VALUES (%s, %s, %s, %s)
+        INSERT INTO room_messages (room_name, username, message, reply_to_message_id, attachments)
+        VALUES (%s, %s, %s, %s, %s::jsonb)
         RETURNING id
         """,
-        (room_name, username, message, reply_to_message_id)
+        (
+            room_name, 
+            username, 
+            message, 
+            reply_to_message_id, 
+            json.dumps(attachments),
+        )
     )
 
     message_id = cur.fetchone()[0]
@@ -56,7 +65,7 @@ def get_room_messages(room_name):
 
     cur.execute(
         """
-        SELECT id, username, message, created_at, edited, edited_at, deleted, deleted_at, reply_to_message_id
+        SELECT id, username, message, created_at, edited, edited_at, deleted, deleted_at, reply_to_message_id, attachments
         FROM room_messages
         WHERE room_name = %s
         ORDER BY created_at ASC
@@ -114,6 +123,8 @@ def get_room_messages(room_name):
                 message["reply_preview"] = None
         else :
             message["reply_preview"] = None
+
+        message["attachments"] = row[9] or []
 
         cur.execute(
             """
