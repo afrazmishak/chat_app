@@ -246,7 +246,7 @@ function Dashboard({ user, setUser }) {
         return uploadedFiles;
     }
 
-    async function sendMessage() {
+    async function sendMessage(clearFileInput) {
         if (!text.trim() && selectedFiles.length === 0) return;
 
         if (!socketRef.current || socketRef.current.readyState !== WebSocket.OPEN) {
@@ -273,6 +273,7 @@ function Dashboard({ user, setUser }) {
         );
         setText("");
         setSelectedFiles([]);
+        clearFileInput?.();
         clearTyping();
         setReplyingTo(null);
     }

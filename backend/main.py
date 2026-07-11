@@ -1,5 +1,6 @@
 import bcrypt
 import os
+import uuid
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Depends, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer
@@ -28,17 +29,34 @@ from pydantic import BaseModel
 from database import create_user
 from jose import jwt, JWTError
 from message_builder import build_room_message, build_private_message
+from pathlib import Path
 
 SECRET_KEY = "change-this-secret-key-later"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
+MAX_FILE_SIZE = 10 * 1024 *1024
+
+ALLOWED_CONTENT_TYPES = {
+    "image/jpeg",
+    "image/png",
+    "image/gif",
+    "application/pdf",
+    "text.plain",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+}
 
 app = FastAPI()
 
-UPLOAD_DIR = "uploads"
-os.makedirs(UPLOAD_DIR, exist_ok=True)
+BASE_DIR = Path(__file__).resolve().parent
+UPLOAD_DIR = BASE_DIR / "uploads"
 
-app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
+app.mount(
+    "/uploads",
+    StaticFiles(directory=str(UPLOAD_DIR)),
+    name="uploads"
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -489,13 +507,44 @@ async def upload_file(
     file: UploadFile = File(...),
     current_user: dict = Depends(get_current_user)
 ):
-    file_path = os.path.join(UPLOAD_DIR, file.filename)
+    if not file.filename:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid filename"
+        )
+
+    if file.filename.startswith("."):
+        raise HTTPException(
+            status_code=400,
+            detail="Hidden or configuration files are not allowed"
+        )
+
+    if file.content_type not in ALLOWED_CONTENT_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail="This file type is not allowed"
+        )
+
+    file_data = await file.read()
+
+    if len(file_data) > MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=400,
+            detail="File size must not exceed 10 MB"
+        )
+    
+    extension = os.path.splitext(file.filename)[1]
+    stored_filename = f"{uuid.uuid4().hex}{extension}"
+
+    file_path = UPLOAD_DIR / stored_filename
 
     with open(file_path, "wb") as buffer:
-        buffer.write(await file.read())
+        buffer.write(file_data)
 
     return {
         "filename": file.filename,
-        "url": f"http://127.0.0.1:8000/uploads/{file.filename}",
-        "content_type": file.content_type
+        "stored_filename": stored_filename,
+        "url": f"http://127.0.0.1:8000/uploads/{stored_filename}",
+        "content_type": file.content_type,
+        "size": len(file_data),
     }

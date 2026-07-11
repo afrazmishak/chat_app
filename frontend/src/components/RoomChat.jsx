@@ -7,6 +7,12 @@ function RoomChat({ user, currentRoom, messages, sendMessage, text, setText,
     clearSearch, selectedFiles, setSelectedFiles }) {
     const fileInputRef = useRef(null);
 
+    function clearFileInput() {
+        if (fileInputRef.current) {
+            fileInputRef.current.value = ""
+        }
+    }
+
     return (
         <>
             <div className="room-header">
@@ -181,11 +187,15 @@ function RoomChat({ user, currentRoom, messages, sendMessage, text, setText,
                 value={text}
                 onChange={(e) => setText(e.target.value)}
                 onKeyDown={(e) => {
-                    if (e.key === "Enter") sendMessage();
+                    if (e.key === "Enter") {
+                        sendMessage(clearFileInput);   
+                    }
                 }}
             />
 
-            <button onClick={sendMessage}>Send</button>
+            <button onClick={() => sendMessage(clearFileInput)}>
+                Send
+            </button>
         </>
     );
 }
