@@ -2,6 +2,8 @@ import { useEffect } from "react";
 
 function useChatSocket({ currentRoom, username, socketRef, setStatus, handleIncomingMessage, }) {
     useEffect(() => {
+        let heartbeatInterval;
+
         const token = localStorage.getItem("chat_token");
 
         const wsUrl = `ws://127.0.0.1:8000/ws/${currentRoom}/${username}?token=${token}`;
@@ -11,6 +13,16 @@ function useChatSocket({ currentRoom, username, socketRef, setStatus, handleInco
 
         socket.onopen = () => {
             setStatus("Connected");
+
+            heartbeatInterval = setInterval(() => {
+                if (socket.readyState === WebSocket.OPEN) {
+                    socket.send(
+                        JSON.stringify({
+                            type: "heartbeat",
+                        })
+                    );
+                }
+            }, 5000);
         };
 
         socket.onmessage = (event) => {
@@ -27,6 +39,7 @@ function useChatSocket({ currentRoom, username, socketRef, setStatus, handleInco
         };
 
         return () => {
+            clearInterval(heartbeatInterval);
             socket.close();
         };
     }, [currentRoom, username, socketRef, setStatus, handleIncomingMessage]);

@@ -174,19 +174,41 @@ function Dashboard({ user, setUser }) {
             return;
         }
 
-        setMessages((prev) => ({
-            ...prev,
-            [currentRoom]: [...(prev[currentRoom] || []), data],
-        }));
+        if (data.type === "room_message") {
+            if (data.type === "system") {
+                return;
+            }
 
-        if (data.type === "room_message" && data.username !== user.username) {
-            socketRef.current.send(
-                JSON.stringify({
-                    type: "message_seen",
-                    message_id: data.id,
-                })
-            );
+            if (
+                data.type === "room_message" &&
+                !data.text?.trim() &&
+                (!data.attachments || data.attachments.length === 0)
+            ) {
+                return;
+            }
+
+            setMessages((prev) => ({
+                ...prev,
+                [currentRoom]: [...(prev[currentRoom] || []), data],
+            }));
+
+            if (
+                data.username !== user.username &&
+                socketRef.current &&
+                socketRef.current.readyState === WebSocket.OPEN
+            ) {
+                socketRef.current.send(
+                    JSON.stringify({
+                        type: "message_seen",
+                        message_id: data.id,
+                    })
+                );
+            }
+
+            return;
         }
+
+        console.log("Ignored Websocket event:", data);
     }, [currentRoom, user.username, handleTyping,]);
 
     useChatSocket({

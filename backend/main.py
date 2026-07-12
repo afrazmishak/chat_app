@@ -225,32 +225,59 @@ class ConnectionManager:
         self.rooms = {}
         self.users = {}
         self.active_users = {}
-
+        
+        
     async def connect(self, room: str, username: str, websocket: WebSocket):
         await websocket.accept()
-
-        if room not in self.rooms:
-            self.rooms[room] = []
-            self.users[room] = []
-
-        self.rooms[room].append(websocket)
-        self.users[room].append(username)
+        
+        old_socket = self.active_users.get(username)
+        
+        if old_socket and old_socket != websocket:
+            for existing_room in list(self.rooms.keys()):
+                room_connections = self.rooms.get(existing_room, [])
+                
+                if old_socket in room_connections:
+                    room_connections.remove(old_socket)
+                    
+                if not room_connections:
+                    self.rooms.pop(existing_room, None)
+                    
+                if existing_room != room:
+                    self.users.pop(existing_room, None)
+                    
+        self.rooms.setdefault(room, [])
+        self.users.setdefault(room, [])
+        
+        if websocket not in self.rooms[room]:
+            self.rooms[room].append(websocket)
+            
+        if username not in self.users[room]:
+            self.users[room].append(username)
+            
         self.active_users[username] = websocket
 
     def disconnect(self, room: str, username: str, websocket: WebSocket):
-        if room in self.rooms:
-            if websocket in self.rooms[room]:
-                self.rooms[room].remove(websocket)
+        is_current_connection = (
+            self.active_users.get(username) == websocket
+        )
 
-            if username in self.users[room]:
-                self.users[room].remove(username)
+        if room in self.rooms and websocket in self.rooms[room]:
+            self.rooms[room].remove(websocket)
 
-                if self.active_users.get(username) == websocket:
-                    del self.active_users[username]
+            if not is_current_connection:
+                return False
 
-            if len(self.rooms[room]) == 0:
+            if room in self.users:
+                while username in self.users[room]:
+                    self.users[room].remove(username)
+
+            self.active_users.pop(username, None)
+
+            if room in self.rooms and len(self.rooms[room]) == 0:
                 del self.rooms[room]
-                del self.users[room]
+                self.users.pop(room, None)
+
+            return True
 
     async def broadcast(self, room: str, data: dict):
         disconnected = []
@@ -325,8 +352,18 @@ async def websocket_endpoint(
         return
 
     await manager.connect(room, username, websocket)
-    set_user_online(username, True)
 
+    try:
+        await websocket.send_json({
+            "type": "users",
+            "users": manager.users.get(room, [])
+        })
+    except (WebSocketDisconnect, RuntimeError):
+        manager.disconnect(room, username, websocket)
+        return
+    
+    set_user_online(username, True)
+    
     save_user(username)
     save_room_member(username, room)
     
@@ -341,10 +378,14 @@ async def websocket_endpoint(
     try:
         while True:
             raw_message = await websocket.receive_json()
-
-            print(raw_message)
-
             timestamp = datetime.now().strftime("%H:%M")
+
+            if raw_message["type"] == "heartbeat":
+                await websocket.send_json({
+                    "type": "heartbeat_ack"
+                })
+
+                continue
 
             if raw_message["type"] == "typing":
                 await manager.broadcast(
@@ -471,9 +512,15 @@ async def websocket_endpoint(
                 await manager.send_private_message(username, receiver, message)
 
     except (WebSocketDisconnect, RuntimeError):
-        manager.disconnect(room, username, websocket)
-        set_user_online(username, False)
-        update_last_seen(username)
+        fully_disconnected = manager.disconnect(
+            room,
+            username,
+            websocket
+        )
+
+        if fully_disconnected:
+            set_user_online(username, False)
+            update_last_seen(username)
 
         try:
             await manager.broadcast(room, {
