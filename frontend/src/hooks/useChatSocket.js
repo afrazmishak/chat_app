@@ -1,15 +1,29 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 function useChatSocket({ currentRoom, username, socketRef, setStatus, handleIncomingMessage, }) {
-    useEffect(() => {
-        let heartbeatInterval;
+    const messageHandlerRef = useRef(handleIncomingMessage);
 
+    useEffect(() => {
+        messageHandlerRef.current = handleIncomingMessage;
+
+    }, [handleIncomingMessage]);
+
+    useEffect(() => {
         const token = localStorage.getItem("chat_token");
 
-        const wsUrl = `ws://127.0.0.1:8000/ws/${currentRoom}/${username}?token=${token}`;
+        if (!token || !currentRoom || !username) {
+            return;
+        }
+
+        let heartbeatInterval;
+
+        const wsUrl =
+            `ws://127.0.0.1:8000/ws/${currentRoom}/${username}?token=${token}`;
 
         const socket = new WebSocket(wsUrl);
         socketRef.current = socket;
+
+        setStatus("Connecting...");
 
         socket.onopen = () => {
             setStatus("Connected");
@@ -26,23 +40,49 @@ function useChatSocket({ currentRoom, username, socketRef, setStatus, handleInco
         };
 
         socket.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-            handleIncomingMessage(data);
+            try {
+                const data = JSON.parse(event.data);
+
+                if (data.type === "heartbeat_ack") {
+                    return;
+                }
+
+                messageHandlerRef.current(data);
+            } catch (error) {
+                console.error("Invalid WebSocket message", error);
+            }
         };
 
         socket.onerror = () => {
-            setStatus("Error");
+            if (socketRef.current === socket) {
+                setStatus("Error");
+            }
         };
 
         socket.onclose = () => {
-            setStatus("Closed");
+            if (heartbeatInterval) {
+                clearInterval(heartbeatInterval);
+            }
+
+            if (socketRef.current === socket) {
+                setStatus("Closed");
+                socketRef.current = null;
+            }
         };
 
         return () => {
-            clearInterval(heartbeatInterval);
-            socket.close();
+            if (heartbeatInterval) {
+                clearInterval(heartbeatInterval);
+            }
+
+            if (
+                socket.readyState === WebSocket.OPEN ||
+                socket.readyState === WebSocket.CONNECTING
+            ) {
+                socket.close();
+            }
         };
-    }, [currentRoom, username, socketRef, setStatus, handleIncomingMessage]);
+    }, [currentRoom, username, socketRef, setStatus]);
 }
 
 export default useChatSocket;

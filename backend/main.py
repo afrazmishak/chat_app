@@ -41,7 +41,7 @@ ALLOWED_CONTENT_TYPES = {
     "image/png",
     "image/gif",
     "application/pdf",
-    "text.plain",
+    "text/plain",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 }
 
@@ -263,21 +263,21 @@ class ConnectionManager:
 
         if room in self.rooms and websocket in self.rooms[room]:
             self.rooms[room].remove(websocket)
-
-            if not is_current_connection:
+            
+        if not is_current_connection:
                 return False
+                
+        if room in self.users:
+            while username in self.users[room]:
+                self.users[room].remove(username)
+                
+        self.active_users.pop(username, None)
+        
+        if room in self.rooms and not self.rooms[room]:
+            self.rooms.pop(room, None)
+            self.users.pop(room, None)
 
-            if room in self.users:
-                while username in self.users[room]:
-                    self.users[room].remove(username)
-
-            self.active_users.pop(username, None)
-
-            if room in self.rooms and len(self.rooms[room]) == 0:
-                del self.rooms[room]
-                self.users.pop(room, None)
-
-            return True
+        return True
 
     async def broadcast(self, room: str, data: dict):
         disconnected = []
@@ -301,23 +301,25 @@ class ConnectionManager:
         })
 
     async def broadcast_global_users(self):
-        global_users = list(self.active_users.keys())
-        disconnected_users = []
+        online_users = list(self.active_users.keys())
         
-        for username, connection in self.active_users.items():
+        message = {
+            "type": "global_users",
+            "users": online_users,
+        }
+        
+        for username, websocket in list(self.active_users.items()):
             try:
-                await connection.send_json({
-                "type": "global_users",
-                "users": global_users
-                })
-            except RuntimeError:
-                disconnected_users.append(username)
-            except WebSocketDisconnect:
-                disconnected_users.append(username)
-
-        for username in disconnected_users:
-            if username in self.active_users:
-                del self.active_users[username]
+                await websocket.send_json(message)
+                
+            except (WebSocketDisconnect, RuntimeError):
+                continue
+                
+            except Exception as error:
+                print(
+                    f"Failed to send global users to {username}:",
+                    error
+                )
 
     async def send_private_message(self, sender: str, receiver: str, data: dict):
         sender_socket = self.active_users.get(sender)
@@ -521,18 +523,18 @@ async def websocket_endpoint(
         if fully_disconnected:
             set_user_online(username, False)
             update_last_seen(username)
-
-        try:
-            await manager.broadcast(room, {
-                "type": "system",
-                "text": f"System: {username} left the room"
-            })
             
-            await manager.broadcast_users(room)
-            await manager.broadcast_global_users()
-
-        except RuntimeError:
-            pass
+            try:
+                await manager.broadcast(room, {
+                    "type": "system",
+                    "text": f"System: {username} left the room"
+                })
+                
+                await manager.broadcast_users(room)
+                await manager.broadcast_global_users()
+                
+            except RuntimeError:
+                pass
 
 @app.get("/profile")
 def profile(current_user: dict = Depends(get_current_user)):
